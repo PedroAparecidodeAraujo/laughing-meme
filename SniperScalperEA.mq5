@@ -1,12 +1,12 @@
 //+------------------------------------------------------------------+
 //|                                              SniperScalperEA.mq5 |
 //|                        Sniper Scalper Ultra - Expert Advisor      |
-//|                        Sistema de Confluencia com 22 Indicadores  |
+//|                        Sistema de Confluencia com 24 Indicadores  |
 //+------------------------------------------------------------------+
 #property copyright   "Sniper Scalper Ultra EA"
 #property link        "https://github.com/PedroAparecidodeAraujo"
 #property version     "1.00"
-#property description "EA Scalper Sniper com 22 indicadores, trailing stop agressivo, stop curto e take profit longo."
+#property description "EA Scalper Sniper com 24 indicadores, trailing stop agressivo, stop curto e take profit longo."
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -260,6 +260,19 @@ input bool     InpUseVolumes        = true;       // Usar Volumes
 input ENUM_APPLIED_VOLUME InpVolType = VOLUME_TICK; // Volume - Tipo
 
 //+------------------------------------------------------------------+
+//| INPUT PARAMETERS - FRACTALS                                      |
+//+------------------------------------------------------------------+
+input group "=== 23. Fractals ==="
+input bool     InpUseFractals       = true;       // Usar Fractals
+
+//+------------------------------------------------------------------+
+//| INPUT PARAMETERS - DONCHIAN CHANNELS                             |
+//+------------------------------------------------------------------+
+input group "=== 24. Canais de Donchian ==="
+input bool     InpUseDonchian       = true;       // Usar Canais de Donchian
+input int      InpDonchianPeriod    = 20;         // Donchian - Periodo
+
+//+------------------------------------------------------------------+
 //| INPUT PARAMETERS - HORARIO DE OPERACAO                           |
 //+------------------------------------------------------------------+
 input group "=== HORARIO DE OPERACAO ==="
@@ -306,6 +319,8 @@ int hEnvelopes;
 int hAO;
 int hOBV;
 int hVolumes;
+int hFractals;
+int hDonchianHigh, hDonchianLow;
 
 // Tracking
 datetime lastBarTime = 0;
@@ -604,6 +619,25 @@ bool CreateIndicatorHandles()
         { Print("Erro: Volumes handle"); success = false; }
      }
 
+   // 23. Fractals
+   if(InpUseFractals)
+     {
+      hFractals = iFractals(_Symbol, InpTimeframe);
+      if(hFractals == INVALID_HANDLE)
+        { Print("Erro: Fractals handle"); success = false; }
+     }
+
+   // 24. Donchian Channels (custom via iCustom or manual calculation with iMA handles)
+   if(InpUseDonchian)
+     {
+      hDonchianHigh = iHighest(_Symbol, InpTimeframe, MODE_HIGH, InpDonchianPeriod, 1);
+      hDonchianLow  = iLowest(_Symbol, InpTimeframe, MODE_LOW, InpDonchianPeriod, 1);
+      // Donchian uses iHighest/iLowest at runtime, no persistent handle needed
+      // We store -1 as placeholder; actual calculation is done in signal function
+      hDonchianHigh = -1;
+      hDonchianLow  = -1;
+     }
+
    return success;
   }
 
@@ -634,10 +668,11 @@ void ReleaseHandles()
    if(InpUseAO)         IndicatorRelease(hAO);
    if(InpUseOBV)        IndicatorRelease(hOBV);
    if(InpUseVolumes)    IndicatorRelease(hVolumes);
+   if(InpUseFractals)   IndicatorRelease(hFractals);
   }
 
 //+------------------------------------------------------------------+
-//| Calculate signals from all 22 indicators                         |
+//| Calculate signals from all 24 indicators                         |
 //+------------------------------------------------------------------+
 void CalculateAllSignals(int &buyScore, int &sellScore, int &totalActive)
   {
@@ -986,6 +1021,64 @@ void CalculateAllSignals(int &buyScore, int &sellScore, int &totalActive)
          else if(vol[1] > vol[2] && close1 < open1)
             sellScore++;
         }
+     }
+
+   // ===== 23. Fractals =====
+   if(InpUseFractals)
+     {
+      double fracUp[], fracDown[];
+      if(GetIndicatorValue(hFractals, 0, fracUp, 10) &&
+         GetIndicatorValue(hFractals, 1, fracDown, 10))
+        {
+         totalActive++;
+         // Procura fractal recente (fractals aparecem com atraso de 2 barras)
+         double lastFracUp = 0, lastFracDown = 0;
+         for(int f = 3; f < 10; f++)
+           {
+            if(lastFracUp == 0 && fracUp[f] != EMPTY_VALUE && fracUp[f] != 0)
+               lastFracUp = fracUp[f];
+            if(lastFracDown == 0 && fracDown[f] != EMPTY_VALUE && fracDown[f] != 0)
+               lastFracDown = fracDown[f];
+            if(lastFracUp != 0 && lastFracDown != 0)
+               break;
+           }
+         // Preco acima do ultimo fractal de alta = bullish
+         if(lastFracUp != 0 && lastFracDown != 0)
+           {
+            if(close1 > lastFracUp)
+               buyScore++;
+            else if(close1 < lastFracDown)
+               sellScore++;
+           }
+        }
+     }
+
+   // ===== 24. Canais de Donchian =====
+   if(InpUseDonchian)
+     {
+      double donchianHigh = 0, donchianLow = DBL_MAX;
+      for(int d = 1; d <= InpDonchianPeriod; d++)
+        {
+         double h = iHigh(_Symbol, InpTimeframe, d);
+         double l = iLow(_Symbol, InpTimeframe, d);
+         if(h > donchianHigh) donchianHigh = h;
+         if(l < donchianLow)  donchianLow = l;
+        }
+      double donchianMid = (donchianHigh + donchianLow) / 2.0;
+
+      totalActive++;
+      // Breakout acima do canal = compra, abaixo = venda
+      if(close1 >= donchianHigh)
+         buyScore++;
+      else if(close1 <= donchianLow)
+         sellScore++;
+
+      // Posicao relativa ao meio do canal
+      totalActive++;
+      if(close1 > donchianMid)
+         buyScore++;
+      else if(close1 < donchianMid)
+         sellScore++;
      }
   }
 

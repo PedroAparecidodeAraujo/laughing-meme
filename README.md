@@ -1,10 +1,10 @@
 # Sniper Scalper Ultra EA - MetaTrader 5
 
-Expert Advisor (EA) para MetaTrader 5 com sistema de confluencia de **22 indicadores tecnicos**, trailing stop agressivo, stop loss curto e take profit longo.
+Expert Advisor (EA) para MetaTrader 5 com sistema de confluencia de **24 indicadores tecnicos**, trailing stop agressivo, stop loss curto e take profit longo.
 
 ## Caracteristicas Principais
 
-### 22 Indicadores com Parametros Ajustaveis
+### 24 Indicadores com Parametros Ajustaveis
 | # | Indicador | Tipo |
 |---|-----------|------|
 | 1-3 | EMA (Rapida 8, Media 21, Lenta 50) | Tendencia |
@@ -27,6 +27,8 @@ Expert Advisor (EA) para MetaTrader 5 com sistema de confluencia de **22 indicad
 | 20 | Awesome Oscillator | Momentum |
 | 21 | OBV | Volume |
 | 22 | Volumes | Volume |
+| 23 | Fractals | Padrao de Preco |
+| 24 | Canais de Donchian (20) | Breakout/Canal |
 
 ### Sistema de Gerenciamento de Risco
 - **Stop Loss Curto** (padrao: 150 pontos / 15 pips)
